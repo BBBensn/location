@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Location · bensn.me</title>
+<meta name="description" content="Persönlicher Standortverlauf.">
+<link rel="manifest" href="/manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Location">
+<meta name="theme-color" content="#0a0a0b">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared/bensn.css">
+<style>
+
+/* ── App Layout ── */
+body { overscroll-behavior: none; }
+.app-wrap {
+  position: relative;
+  z-index: 1;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 0 1.25rem 3rem;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Stats Bar ── */
+.loc-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 1.25rem;
+}
+.loc-stat {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.loc-stat-val {
+  font-family: 'DM Mono', monospace;
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: var(--text);
+  line-height: 1;
+}
+.loc-stat-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+/* ── Day Group ── */
+.day-group { margin-bottom: 1.5rem; }
+.day-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  padding: 0 2px;
+}
+.day-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.day-count {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  color: rgba(255,255,255,0.2);
+}
+.day-line {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* ── Timeline ── */
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* ── Location Row ── */
+.loc-row {
+  display: grid;
+  grid-template-columns: 32px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  transition: border-color 0.15s;
+  opacity: 0;
+  transform: translateY(6px);
+  animation: fadeUp 0.4s ease forwards;
+}
+.loc-row:hover { border-color: var(--border-hover); }
+
+/* Time indicator column */
+.loc-time-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+.loc-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(0,166,251,0.5);
+  flex-shrink: 0;
+}
+.loc-dot.recent { background: var(--accent-blue); box-shadow: 0 0 6px rgba(0,166,251,0.4); }
+.loc-time {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+  writing-mode: horizontal-tb;
+  white-space: nowrap;
+}
+
+/* Main content */
+.loc-main { min-width: 0; }
+.loc-place {
+  font-family: 'Syne', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.01em;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.loc-coords {
+  font-family: 'DM Mono', monospace;
+  font-size: 9.5px;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+
+/* Right meta */
+.loc-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  flex-shrink: 0;
+}
+.loc-acc {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  color: rgba(255,255,255,0.2);
+}
+.loc-acc.good { color: rgba(74,222,128,0.5); }
+.loc-acc.ok   { color: rgba(250,204,21,0.4); }
+.loc-acc.bad  { color: rgba(255,0,81,0.4); }
+
+/* ── Load More ── */
+.load-more-btn {
+  width: 100%;
+  margin-top: 1rem;
+  padding: 10px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--muted);
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.load-more-btn:hover { border-color: var(--border-hover); color: var(--text); }
+.load-more-btn:disabled { opacity: 0.3; cursor: default; }
+
+/* ── Empty / Error ── */
+.state-msg {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+  padding: 3rem 1rem;
+  border: 1px dashed var(--border);
+  border-radius: 16px;
+  line-height: 1.8;
+}
+
+@keyframes fadeUp { to { opacity: 1; transform: none; } }
+
+</style>
+</head>
+<body>
+
+<div class="grid-bg"></div>
+<div class="blobs" id="blobs"></div>
+
+<div class="app-wrap">
+
+  <!-- ── Navbar ── -->
+  <nav class="app-nav intro-fade" style="animation-delay:0.05s">
+    <a href="https://bensn.me" class="nav-crumb"><span>bensn</span>.me</a>
+    <span class="nav-sep">/</span>
+    <span class="nav-current">location</span>
+    <div class="nav-right">
+      <div class="dot" id="statusDot" style="background:var(--muted);animation:none"></div>
+      <span id="statusText">laden…</span>
+    </div>
+  </nav>
+
+  <!-- ── Stats ── -->
+  <div class="loc-stats intro-fade" style="animation-delay:0.12s">
+    <div class="loc-stat">
+      <div class="loc-stat-val" id="stat-total">—</div>
+      <div class="loc-stat-label">Punkte gesamt</div>
+    </div>
+    <div class="loc-stat">
+      <div class="loc-stat-val" id="stat-today">—</div>
+      <div class="loc-stat-label">Heute</div>
+    </div>
+    <div class="loc-stat">
+      <div class="loc-stat-val" id="stat-last">—</div>
+      <div class="loc-stat-label">Letzter Punkt</div>
+    </div>
+  </div>
+
+  <!-- ── Timeline ── -->
+  <div id="timeline-container"></div>
+
+  <footer style="border-top:1px solid var(--border);padding:1rem 0;display:flex;justify-content:space-between;margin-top:auto">
+    <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted)">location.bensn.me</span>
+    <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted)" id="footer-clock"></span>
+  </footer>
+
+</div>
+
+<script src="/shared/bensn.js"></script>
+<script>
+/* ── Clock ── */
+function pad(n){return String(n).padStart(2,'0')}
+function clockTick(){
+  const n=new Date();
+  const el=document.getElementById('footer-clock');
+  if(el) el.textContent=pad(n.getHours())+':'+pad(n.getMinutes())+':'+pad(n.getSeconds());
+}
+clockTick(); setInterval(clockTick,1000);
+
+/* ── Helpers ── */
+function fmtTime(iso){
+  if(!iso) return '—';
+  return new Date(iso).toLocaleTimeString('de-AT',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Vienna'});
+}
+function fmtCoord(lat,lon){
+  if(lat==null||lon==null) return '—';
+  return parseFloat(lat).toFixed(5)+'°N  '+parseFloat(lon).toFixed(5)+'°E';
+}
+function accClass(acc){
+  if(!acc) return '';
+  const n=parseFloat(acc);
+  if(n<=20) return 'good';
+  if(n<=60) return 'ok';
+  return 'bad';
+}
+function fmtAcc(acc){
+  if(!acc) return '—';
+  return '±'+Math.round(parseFloat(acc))+'m';
+}
+function isToday(iso){
+  const d=new Date(iso), t=new Date();
+  return d.toDateString()===t.toDateString();
+}
+function fmtDayLabel(dateStr){
+  const d=new Date(dateStr+'T12:00:00'), t=new Date();
+  const diff=Math.floor((t-d)/86400000);
+  if(diff===0) return 'Heute';
+  if(diff===1) return 'Gestern';
+  return d.toLocaleDateString('de-AT',{weekday:'short',day:'numeric',month:'short'});
+}
+function toViennaDate(iso){
+  return new Date(iso).toLocaleDateString('en-CA',{timeZone:'Europe/Vienna'});
+}
+function timeSince(iso){
+  const diff=Math.floor((new Date()-new Date(iso))/60000);
+  if(diff<2) return 'gerade';
+  if(diff<60) return diff+'min';
+  if(diff<1440) return Math.floor(diff/60)+'h';
+  return Math.floor(diff/1440)+'d';
+}
+
+/* ── API ── */
+async function apiFetch(path){
+  const r=await fetch(path);
+  if(!r.ok) throw new Error(r.status);
+  return r.json();
+}
+
+/* ── State ── */
+let allPoints=[];
+let offset=0;
+const LIMIT=50;
+
+/* ── Render ── */
+function renderTimeline(points, append=false){
+  const container=document.getElementById('timeline-container');
+  if(!append) container.innerHTML='';
+
+  if(!points||points.length===0){
+    if(!append) container.innerHTML='<div class="state-msg">Noch keine Standortdaten.<br><span style="font-size:10px">OwnTracks sendet automatisch.</span></div>';
+    return;
+  }
+
+  // Group by Vienna date
+  const groups={};
+  points.forEach(p=>{
+    const day=toViennaDate(p.timestamp);
+    if(!groups[day]) groups[day]=[];
+    groups[day].push(p);
+  });
+
+  const now=new Date();
+  const recentThreshold=15*60*1000; // 15min
+
+  Object.entries(groups).forEach(([day,pts])=>{
+    // Check if group already exists (for append)
+    let groupEl=document.getElementById('day-'+day);
+    let timelineEl;
+
+    if(!groupEl){
+      groupEl=document.createElement('div');
+      groupEl.className='day-group';
+      groupEl.id='day-'+day;
+      groupEl.innerHTML=`
+        <div class="day-header">
+          <span class="day-label">${fmtDayLabel(day)}</span>
+          <span class="day-count" id="count-${day}">${pts.length} Punkte</span>
+          <div class="day-line"></div>
+        </div>
+        <div class="timeline" id="tl-${day}"></div>`;
+      container.appendChild(groupEl);
+    } else {
+      // Update count
+      const countEl=document.getElementById('count-'+day);
+      if(countEl) countEl.textContent=(parseInt(countEl.textContent)||0)+pts.length+' Punkte';
+    }
+
+    timelineEl=document.getElementById('tl-'+day);
+
+    pts.forEach((p,i)=>{
+      const isRecent=(now-new Date(p.timestamp))<recentThreshold;
+      const row=document.createElement('div');
+      row.className='loc-row';
+      row.style.animationDelay=(i*30)+'ms';
+
+      const placeName = p.city
+        ? (p.district?`${p.district}, ${p.city}`:p.city)
+        : fmtCoord(p.latitude,p.longitude);
+
+      const showCoords = !!p.city;
+
+      row.innerHTML=`
+        <div class="loc-time-col">
+          <div class="loc-dot${isRecent?' recent':''}"></div>
+          <div class="loc-time">${fmtTime(p.timestamp)}</div>
+        </div>
+        <div class="loc-main">
+          <div class="loc-place">${placeName}</div>
+          ${showCoords?`<div class="loc-coords">${fmtCoord(p.latitude,p.longitude)}</div>`:''}
+        </div>
+        <div class="loc-meta">
+          <span class="loc-acc ${accClass(p.accuracy)}">${fmtAcc(p.accuracy)}</span>
+        </div>`;
+
+      timelineEl.appendChild(row);
+    });
+  });
+}
+
+function updateStats(points){
+  const total=points.length;
+  const todayCount=points.filter(p=>isToday(p.timestamp)).length;
+  const last=points[0];
+
+  document.getElementById('stat-total').textContent=total+'+'  ;
+  document.getElementById('stat-today').textContent=todayCount;
+  document.getElementById('stat-last').textContent=last?timeSince(last.timestamp):'—';
+}
+
+/* ── Load ── */
+async function loadPoints(append=false){
+  try{
+    const data=await apiFetch(`/api/locations?limit=${LIMIT}&offset=${offset}`);
+    const points=data.locations||data||[];
+
+    if(!append){
+      allPoints=points;
+    } else {
+      allPoints=[...allPoints,...points];
+    }
+
+    const dot=document.getElementById('statusDot');
+    const statusText=document.getElementById('statusText');
+
+    if(allPoints.length>0){
+      const last=new Date(allPoints[0].timestamp);
+      const minAgo=Math.floor((new Date()-last)/60000);
+      dot.style.background=minAgo<30?'var(--green)':'var(--muted)';
+      dot.style.animation=minAgo<30?'pulse 2s ease-in-out infinite':'none';
+      statusText.textContent=minAgo<30?'aktiv':'letzter: '+timeSince(allPoints[0].timestamp);
+    } else {
+      dot.style.background='var(--muted)';
+      dot.style.animation='none';
+      statusText.textContent='keine daten';
+    }
+
+    updateStats(allPoints);
+    renderTimeline(points, append);
+
+    // Load more button
+    const existingBtn=document.getElementById('load-more');
+    if(points.length>=LIMIT){
+      if(!existingBtn){
+        const btn=document.createElement('button');
+        btn.id='load-more';
+        btn.className='load-more-btn';
+        btn.textContent='Mehr laden';
+        btn.onclick=()=>{
+          offset+=LIMIT;
+          btn.textContent='Laden…';
+          btn.disabled=true;
+          loadPoints(true).then(()=>{
+            btn.textContent='Mehr laden';
+            btn.disabled=false;
+          });
+        };
+        document.getElementById('timeline-container').appendChild(btn);
+      }
+    } else {
+      existingBtn?.remove();
+    }
+
+  }catch(e){
+    document.getElementById('statusDot').style.background='var(--accent-red)';
+    document.getElementById('statusText').textContent='fehler';
+    if(!append){
+      document.getElementById('timeline-container').innerHTML=
+        `<div class="state-msg">Verbindungsfehler<br><span style="color:var(--accent-red);font-size:10px">${e.message}</span></div>`;
+    }
+  }
+}
+
+loadPoints();
+// Auto-refresh alle 60s
+setInterval(()=>{ offset=0; loadPoints(false); }, 60000);
+</script>
+
+</body>
+</html>
