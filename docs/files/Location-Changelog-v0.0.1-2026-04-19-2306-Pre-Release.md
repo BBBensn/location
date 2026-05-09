@@ -1,13 +1,14 @@
 ---
-date_created: 2026-04-19 21:00:00
+date_created: 2026-04-19 23:06:00
 type: note
 tags:
   - project
   - changelog
-date_modified: 2026-04-19 21:00:00
+date_modified: 2026-04-20 01:24:31
 ---
 
 # v0.0.1 (2026-04-19) — Pre-Release
+---
 ## Changes
 - Projektstruktur angelegt: `bensn-hub/location/`
 - Versionierungskonzept definiert: `X.Y.Z` (Major.Minor.Patch), Bugfixes als `.Z`
