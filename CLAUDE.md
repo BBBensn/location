@@ -22,6 +22,8 @@ Ablageort: `~/Documents/Coding/bensn-hub/location/CLAUDE.md`
 ```
 ~/Documents/Coding/bensn-hub/location/
 ├── index.html          ← Location PWA (Timeline, Karte, Stays)
+├── manifest.json        ← PWA Manifest (aus v1.3.0, seither unverändert)
+├── sw.js                ← Service Worker (aus v1.3.0, seither unverändert)
 ├── clustering.py        ← Cron-Script: gruppiert location_logs zu location_stays
 ├── docs/files/           ← Changelogs (abweichend vom Global-Template docs/changelogs/,
 │                           bewusst so belassen — bestehende Konvention dieses Repos)
@@ -68,6 +70,8 @@ hier, weil es ein eigenständiges Cron-Script ist (kein Teil des Flask-`api.py`)
 ```bash
 # Frontend
 scp ~/Documents/Coding/bensn-hub/location/index.html bensn:/var/www/location/index.html
+scp ~/Documents/Coding/bensn-hub/location/manifest.json bensn:/var/www/location/manifest.json
+scp ~/Documents/Coding/bensn-hub/location/sw.js bensn:/var/www/location/sw.js
 
 # Cluster-Cron-Script
 scp ~/Documents/Coding/bensn-hub/location/clustering.py bensn:~/bensn-hub/clustering.py
