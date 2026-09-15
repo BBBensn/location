@@ -7,11 +7,13 @@ Ablageort: `~/Documents/Coding/bensn-hub/location/CLAUDE.md`
 
 ## Projekt-Basics
 
-- **Name:** location (intern: bensn Personal OS)
+- **Name:** location (GPS-Tracking, Clustering, Wetter-Kontext)
 - **Domain:** location.bensn.me
-- **Version:** [placeholder – aktuell deployed version bestätigen]
+- **Version:** v1.4.2
 - **Status:** active
-- **Stack:** Vanilla JS (PWA) + Flask (Python 3) + PostgreSQL 16 via Docker
+- **Stack:** Vanilla JS (PWA) für das Frontend. Backend-Endpoints (`/api/location`, `/api/locations`,
+  `/api/stays`) laufen als Teil der geteilten hub-api (siehe `bensn-meta`-Repo, Port 5001) —
+  dieses Repo enthält nur das Frontend und das location-spezifische Cluster-Cron-Script.
 
 ---
 
@@ -19,30 +21,19 @@ Ablageort: `~/Documents/Coding/bensn-hub/location/CLAUDE.md`
 
 ```
 ~/Documents/Coding/bensn-hub/location/
-├── location_0.0.1/         ← ältere Versions-Snapshots
-├── location_1.0.0/
-│   └── ...
-├── location_1.3.0/         ← letzter versionierter Snapshot
-├── full_site_260429_2044/  ← letzter vollständiger Site-Snapshot (2026-04-29)
-│   ├── api.py              ← Flask Backend (Port 5001)
-│   ├── docker-compose.yml
-│   ├── Dockerfile
-│   ├── schema.sql
-│   ├── requirements.txt
-│   ├── bensn.css / bensn.js
-│   ├── feed/index.html
-│   ├── hub/index.html
-│   └── worktracker/
-├── docs/
-│   └── files/              ← Changelogs (ACHTUNG: abweichend vom Global-Template)
-├── .env                    ← POSTGRES_PASSWORD, API_KEY
+├── index.html          ← Location PWA (Timeline, Karte, Stays)
+├── clustering.py        ← Cron-Script: gruppiert location_logs zu location_stays
+├── docs/files/           ← Changelogs (abweichend vom Global-Template docs/changelogs/,
+│                           bewusst so belassen — bestehende Konvention dieses Repos)
+├── .env                  ← lokal, gitignored (POSTGRES_PASSWORD, API_KEY)
 ├── .gitignore
 └── CLAUDE.md
 ```
 
-> Die aktuelle Arbeitsbasis ist `full_site_260429_2044/`. Neue Versionen werden
-> als neuer Snapshot-Ordner `location_X.Y.Z/` abgelegt — KEIN in-place bearbeiten
-> alter Snapshots.
+**Hinweis aus dem Repo-Restructure:** dieser Ordner enthielt vorher zusätzlich eine eigene
+Kopie von `api.py` (identisch mit der hub-api, nur einen Stand älter) — entfernt, da die
+hub-api ausschließlich in `bensn-meta/hub-versions/` gepflegt wird. `clustering.py` bleibt
+hier, weil es ein eigenständiges Cron-Script ist (kein Teil des Flask-`api.py`).
 
 ---
 
@@ -50,19 +41,13 @@ Ablageort: `~/Documents/Coding/bensn-hub/location/CLAUDE.md`
 
 ```
 /var/www/location/          ← Frontend-Root (nginx static)
-├── index.html              ← Location PWA
-├── feed/index.html
-├── hub/index.html
-└── worktracker/
+└── index.html
 
-/var/www/shared/            ← Shared Assets (bensn.css, bensn.js)
-
-~/bensn-personal-os/        ← Docker Compose Stack
-├── api.py                  ← gemountet in bensn-api Container
-├── docker-compose.yml
-├── Dockerfile
-├── schema.sql
-└── .env
+~/bensn-hub/                 ← Docker Compose Stack (auf dem Server)
+├── api.py                   ← gemountet in bensn-api Container (aus bensn-meta)
+├── clustering.py             ← Cron-Script (aus diesem Repo)
+├── geocode.py, weather_location.py   ← weitere Cron-Scripts (aus bensn-meta)
+└── docker-compose.yml
 ```
 
 ---
@@ -71,33 +56,25 @@ Ablageort: `~/Documents/Coding/bensn-hub/location/CLAUDE.md`
 
 | Dienst | Port | Docker-Container |
 |--------|------|-----------------|
-| Flask API | 5001 | `bensn-api` |
+| hub-api (Flask) | 5001 | `bensn-api` |
 | PostgreSQL 16 | 5432 (nur lokal) | `bensn-postgres` |
 
-Kein systemd-Service — läuft via Docker Compose.
-DB-Name: `bensnos`, User: `bensn`
+`clustering.py` läuft NICHT als systemd-Service, sondern per Cron (siehe `bensn-meta`).
 
 ---
 
 ## Deploy
 
 ```bash
-# Frontend (einzelne Seite)
-scp ~/Documents/Coding/bensn-hub/location/full_site_260429_2044/feed/index.html \
-  bensn:/var/www/location/feed/index.html
+# Frontend
+scp ~/Documents/Coding/bensn-hub/location/index.html bensn:/var/www/location/index.html
 
-# Shared Assets
-scp ~/Documents/Coding/bensn-hub/location/full_site_260429_2044/bensn.css \
-  bensn:/var/www/shared/bensn.css
-
-# Backend (api.py updaten + Container neu starten)
-scp ~/Documents/Coding/bensn-hub/location/full_site_260429_2044/api.py \
-  bensn:~/bensn-personal-os/api.py
-ssh bensn "cd ~/bensn-personal-os && docker compose restart api"
-
-# Docker Stack neu starten (z.B. nach docker-compose.yml Änderung)
-ssh bensn "cd ~/bensn-personal-os && docker compose up -d"
+# Cluster-Cron-Script
+scp ~/Documents/Coding/bensn-hub/location/clustering.py bensn:~/bensn-hub/clustering.py
 ```
+
+Backend-Änderungen (`/api/location`, `/api/locations`, `/api/stays`) werden im
+`bensn-meta`-Repo gepflegt und deployed (siehe dortige `CLAUDE.md`).
 
 ---
 
@@ -106,46 +83,35 @@ ssh bensn "cd ~/bensn-personal-os && docker compose up -d"
 - **Repo:** `https://github.com/BBBensn/location`
 - **Remote:** `git@github.com:BBBensn/location.git`
 
-```bash
-git add .
-git commit -m "Add [feature]"
-git push origin main
-```
-
 ---
 
 ## Auth
 
-- [x] Öffentlich via API-Key — kein `auth.bensn.me`
-- Auth: `X-API-Key` Header — nginx injiziert den Key automatisch für location.bensn.me
+- Öffentlich via API-Key — kein `auth.bensn.me`
+- `X-API-Key` Header — nginx injiziert den Key automatisch für location.bensn.me
 - Endpoints ohne Key: nur `/health`
-- API_KEY liegt in `.env` und als nginx-Header in der Vhost-Config
 
 ---
 
-## API-Aufbau
+## API-Endpoints (im hub-api, nicht in diesem Repo)
 
-Alle Endpoints in `api.py`, gegliedert in:
-
-| Modul | Endpoints |
-|-------|-----------|
-| Worktracker | `/api/shift/*`, `/api/break/*` |
-| Health | `/api/health/sleep`, `/api/health/mood`, `/api/health/log` |
-| Location | `POST /api/location`, `GET /api/locations`, `GET /api/stays`, `PATCH /api/stay/{id}` |
-| Feed | `GET /api/feed` |
-| Stats | `GET /api/stats/weekly`, `GET /api/stats/shift-summary` |
-| Health-Check | `GET /health` |
+| Endpoint | Beschreibung |
+|----------|--------------|
+| `POST /api/location` | GPS-Punkt speichern (OwnTracks- oder Shortcut-Format) |
+| `GET /api/locations` | Historie, `simplify=true` für RDP-Polyline-Vereinfachung |
+| `GET /api/stays` | Geclusterte Aufenthalte (`location_stays`) |
+| `PATCH /api/stay/<id>` | Aufenthalt umbenennen |
 
 ---
 
 ## Projekt-spezifische Konventionen
 
-- API-Response-Format: `{status: "ok", data}` oder direkte Objekte (je Endpoint)
-- DB-Zugriffe nur über `db_query()` / `db_insert()` Helper-Funktionen
-- Timestamps immer UTC ISO 8601
+- `clustering.py` gruppiert aufeinanderfolgende `location_logs`-Punkte innerhalb eines
+  Radius (`CLUSTER_RADIUS_M`, Standard 100m) zu `location_stays`; legt seine Zieltabelle
+  selbst per `ensure_table()` an (kein separates Migrationsfile)
 - OwnTracks-Format (`lat`, `lon`, `tst`) und Shortcut-Format (`latitude`, `longitude`) beide unterstützt
-- Korrektur-Endpoints speichern Original-Snapshot in `original_data` (JSON)
-- Changelog-Pfad: `docs/files/` (abweichend vom Global-Template `docs/changelogs/`)
+- Timestamps immer UTC ISO 8601
+- Changelog-Pfad: `docs/files/` (bewusst abweichend vom Global-Template `docs/changelogs/`)
 
 ---
 
@@ -153,14 +119,16 @@ Alle Endpoints in `api.py`, gegliedert in:
 
 | Version | Feature | Status |
 |---------|---------|--------|
-| v1.0.0 | Location Tracking, OwnTracks, Timeline-Frontend | deployed |
-| v1.3.0 | [placeholder – was kam in 1.1–1.3?] | deployed |
-| v1.x.x | [placeholder – nächste geplante Features] | geplant |
+| v0.0.1–v1.0.3 | Location Tracking, Reverse Geocoding, Wetter-Kontext | ✅ deployed |
+| v1.1.0–v1.2.9 | Clustering-Launch, Bugfixes, Karte-Tagesauswahl | ✅ deployed |
+| v1.3.0 | PWA | ✅ deployed |
+| v1.4.0–v1.4.3 | RDP-Simplification, adaptives Epsilon, Clustering-Extend-Fixes | ✅ deployed |
+
+Details zur vollständigen Versionshistorie: `docs/files/`.
 
 ---
 
 ## Obsidian-Doku
 
-- Projekt-MD: `03_Projects/Coding PC/location/location.md`
-- Changelogs: `03_Projects/Coding PC/location/Changelogs/`
-- Changelog-All: `03_Projects/Coding PC/location/location-Changelog-All.md`
+- Projekt-MD: `03_Projects/Coding PC/Bensn-Hub/Location/Location.md`
+- Changelogs: `03_Projects/Coding PC/Bensn-Hub/Location/Changelogs/`
